@@ -52,8 +52,10 @@ export class Game {
             this.updateHUD();
         };
         
-        // Start with the first room
-        this.enterRoom(0, 0);
+        // Start in the center room
+        const centerX = Math.floor(this.roomSize / 2);
+        const centerY = Math.floor(this.roomSize / 2);
+        this.enterRoom(centerX, centerY);
         
         // Update HUD
         this.updateHUD();
@@ -77,7 +79,7 @@ export class Game {
             this.roomGrid.push(row);
         }
         
-        // Start with the center room
+        // Start with the center room as the starting room
         const startX = Math.floor(this.roomSize / 2);
         const startY = Math.floor(this.roomSize / 2);
         
@@ -86,7 +88,7 @@ export class Game {
         this.rooms.push(startRoom);
         this.roomGrid[startY][startX] = 0; // Index of the room in this.rooms
         
-        // Generate paths to other rooms
+        // Generate paths to other rooms from the starting room
         this.generateRoomPaths(startX, startY);
         
         // Make sure at least one room has an item
@@ -124,8 +126,8 @@ export class Game {
                     const currentRoom = this.rooms[currentRoomIndex];
                     const otherRoom = this.rooms[otherRoomIndex];
                     
-                    // Increase connection chance to 75% for more interconnected rooms
-                    if (Math.random() < 0.75 && !currentRoom.doors[dir.door]) {
+                    // Aumentar la probabilidad de conexión al 90% para asegurar más conexiones
+                    if (Math.random() < 0.9 && !currentRoom.doors[dir.door]) {
                         currentRoom.doors[dir.door] = true;
                         otherRoom.doors[dir.opposite] = true;
                     }
@@ -181,21 +183,63 @@ export class Game {
     ensureAllRoomsConnected() {
         const visited = new Set();
         const toVisit = [0]; // Start from the first room (start room)
+        const roomPositions = [];
         
+        // Primero, recopilamos las posiciones de todas las habitaciones
+        for (let y = 0; y < this.roomSize; y++) {
+            for (let x = 0; x < this.roomSize; x++) {
+                if (this.roomGrid[y][x] !== null) {
+                    roomPositions.push({ x, y, index: this.roomGrid[y][x] });
+                }
+            }
+        }
+        
+        // Realizamos un recorrido BFS para encontrar habitaciones inaccesibles
         while (toVisit.length > 0) {
-            const roomIndex = toVisit.pop();
+            const roomIndex = toVisit.shift(); // Usamos shift para BFS
             if (visited.has(roomIndex)) continue;
             
             visited.add(roomIndex);
             const room = this.rooms[roomIndex];
             
-            // Find all connected rooms
+            // Encuentra la posición de esta habitación en la cuadrícula
+            const roomPos = roomPositions.find(pos => pos.index === roomIndex);
+            if (!roomPos) continue;
+            
+            // Encontrar todas las habitaciones conectadas
             const directions = [
                 { dx: 0, dy: -1, door: 'top', opposite: 'bottom' },
                 { dx: 1, dy: 0, door: 'right', opposite: 'left' },
                 { dx: 0, dy: 1, door: 'bottom', opposite: 'top' },
                 { dx: -1, dy: 0, door: 'left', opposite: 'right' }
             ];
+            
+            // Verificar si hay habitaciones inaccesibles y conectarlas
+            for (const dir of directions) {
+                const newX = roomPos.x + dir.dx;
+                const newY = roomPos.y + dir.dy;
+                
+                // Verificar si la posición está dentro de los límites
+                if (newX >= 0 && newX < this.roomSize && newY >= 0 && newY < this.roomSize) {
+                    const neighborIndex = this.roomGrid[newY][newX];
+                    
+                    // Si hay una habitación adyacente
+                    if (neighborIndex !== null) {
+                        const neighborRoom = this.rooms[neighborIndex];
+                        
+                        // Si no hay puerta entre estas habitaciones, crear una
+                        if (!room.doors[dir.door]) {
+                            room.doors[dir.door] = true;
+                            neighborRoom.doors[dir.opposite] = true;
+                        }
+                        
+                        // Agregar a la cola para visitar
+                        if (!visited.has(neighborIndex)) {
+                            toVisit.push(neighborIndex);
+                        }
+                    }
+                }
+            }
             
             // Find this room's position in the grid
             let roomX = -1, roomY = -1;
@@ -295,32 +339,36 @@ export class Game {
         this.currentRoomX = roomX;
         this.currentRoomY = roomY;
         
-        // Position player based on the direction they came from
-        if (typeof this.lastRoomX !== 'undefined' && typeof this.lastRoomY !== 'undefined') {
+        // Si es la sala de inicio o no hay una habitación anterior, colocar al jugador en el centro
+        if (this.currentRoom.type === 'start' || 
+            typeof this.lastRoomX === 'undefined' || 
+            typeof this.lastRoomY === 'undefined') {
+            
+            this.player.x = this.roomWidth / 2;
+            this.player.y = this.roomHeight / 2;
+        } 
+        // Si no es la sala de inicio, posicionar al jugador según la dirección de entrada
+        else {
             const dx = roomX - this.lastRoomX;
             const dy = roomY - this.lastRoomY;
             
             if (dx > 0) {
-                // Came from left
+                // Viene de la izquierda
                 this.player.x = 50;
                 this.player.y = this.roomHeight / 2;
             } else if (dx < 0) {
-                // Came from right
+                // Viene de la derecha
                 this.player.x = this.roomWidth - 50;
                 this.player.y = this.roomHeight / 2;
             } else if (dy > 0) {
-                // Came from top
+                // Viene de arriba
                 this.player.x = this.roomWidth / 2;
                 this.player.y = 50;
             } else if (dy < 0) {
-                // Came from bottom
+                // Viene de abajo
                 this.player.x = this.roomWidth / 2;
                 this.player.y = this.roomHeight - 50;
             }
-        } else {
-            // Initial room, position in center
-            this.player.x = this.roomWidth / 2;
-            this.player.y = this.roomHeight / 2;
         }
         
         return true;
@@ -476,6 +524,12 @@ export class Game {
         // Check if current room was just cleared
         if (roomChanged && !this.currentRoom.cleared) {
             this.currentRoom.cleared = true;
+            // Forzar la apertura de todas las puertas de la sala actual
+            for (const door in this.currentRoom.doors) {
+                if (this.currentRoom.doors[door]) {
+                    this.currentRoom.doors[door] = 'open';
+                }
+            }
             this.checkLevelCompletion();
         }
         
@@ -667,9 +721,27 @@ export class Game {
     
     checkLevelCompletion() {
         // Check if all rooms are cleared
-        const allRoomsCleared = this.rooms.every(room => room.cleared || room.type === 'start');
+        const allRoomsCleared = this.rooms.every(room => {
+            // La sala de inicio siempre cuenta como despejada
+            if (room.type === 'start') return true;
+            
+            // Para otras salas, verificar si están despejadas o no tienen enemigos
+            return room.cleared || (room.enemies && room.enemies.length === 0);
+        });
         
         if (allRoomsCleared) {
+            // Asegurarse de que todas las salas estén marcadas como despejadas
+            this.rooms.forEach(room => {
+                if (room.type !== 'start') {
+                    room.cleared = true;
+                    // Abrir todas las puertas de las salas despejadas
+                    for (const door in room.doors) {
+                        if (room.doors[door]) {
+                            room.doors[door] = 'open';
+                        }
+                    }
+                }
+            });
             // Move to next level
             this.currentLevel++;
             

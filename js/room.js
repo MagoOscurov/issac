@@ -55,8 +55,16 @@ export class Room {
         this.items = [];
         this.cleared = this.type === 'start'; // Start room starts cleared
 
+        // For start room, ensure all doors are open
+        if (this.type === 'start') {
+            for (const door in this.doors) {
+                if (this.doors[door] !== false) { // If door exists (not false)
+                    this.doors[door] = 'open';
+                }
+            }
+        }
         // Generate enemies for non-start rooms
-        if (this.type === 'normal' || this.type === 'boss' || this.type === 'item') {
+        else if (this.type === 'normal' || this.type === 'boss' || this.type === 'item') {
             // Asegurar que siempre haya al menos un enemigo en habitaciones normales
             const minEnemies = this.type === 'normal' ? 1 : 1;
             const enemyCount = getRandomInt(minEnemies, this.maxEnemies);
@@ -219,6 +227,18 @@ export class Room {
 
     update(player) {
         let roomJustCleared = false;
+        
+        // Si es la sala de inicio, asegurarse de que siempre esté despejada y las puertas abiertas
+        if (this.type === 'start') {
+            this.cleared = true;
+            // Asegurar que todas las puertas existentes estén abiertas
+            for (const door in this.doors) {
+                if (this.doors[door]) {
+                    this.doors[door] = 'open';
+                }
+            }
+            return false; // No hay necesidad de verificar nada más en la sala de inicio
+        }
         
         // Check if room was just cleared (enemies were just defeated)
         const hadEnemies = this.enemies.length > 0;
