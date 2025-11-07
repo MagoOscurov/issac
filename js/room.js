@@ -56,9 +56,27 @@ export class Room {
         this.cleared = this.type === 'start'; // Start room starts cleared
 
         // Generate enemies for non-start rooms
-        if (this.type !== 'start') {
-            const enemyCount = getRandomInt(1, this.maxEnemies);
-            this.spawnEnemies(enemyCount);
+        if (this.type === 'normal' || this.type === 'boss' || this.type === 'item') {
+            // Asegurar que siempre haya al menos un enemigo en habitaciones normales
+            const minEnemies = this.type === 'normal' ? 1 : 1;
+            const enemyCount = getRandomInt(minEnemies, this.maxEnemies);
+            
+            // Intentar generar enemigos hasta que al menos uno se genere correctamente
+            let attempts = 0;
+            const maxAttempts = 5;
+            
+            while (this.enemies.length === 0 && attempts < maxAttempts) {
+                this.spawnEnemies(enemyCount);
+                attempts++;
+                
+                // Si no se generaron enemigos pero debería haber al menos uno, forzar un enemigo básico
+                if (this.enemies.length === 0 && attempts === maxAttempts - 1) {
+                    const x = this.width / 2;
+                    const y = this.height / 2;
+                    const enemy = new Enemy(x, y, 'basic');
+                    this.enemies.push(enemy);
+                }
+            }
             
             // 30% chance for an item to spawn in normal rooms
             if (this.type === 'normal' && Math.random() < 0.3) {
@@ -82,7 +100,13 @@ export class Room {
                 }
             }
         } else {
-            // For other rooms, doors are closed by default until the room is cleared
+            // For other rooms, check if they should be cleared
+            // Si no hay enemigos, la sala se considera automáticamente despejada
+            if (this.enemies.length === 0) {
+                this.cleared = true;
+            }
+            
+            // Configurar puertas basado en si la sala está despejada o no
             for (const door in this.doors) {
                 if (this.doors[door]) {
                     this.doors[door] = this.cleared ? 'open' : true;

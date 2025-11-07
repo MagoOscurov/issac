@@ -118,6 +118,11 @@ export class Player extends Entity {
         this.invincible = true;
         this.invincibleTimer = this.invincibleDuration;
         
+        // Notificar al juego que el jugador ha recibido daño
+        if (this.onTakeDamage) {
+            this.onTakeDamage();
+        }
+        
         if (this.health <= 0) {
             this.die();
         }

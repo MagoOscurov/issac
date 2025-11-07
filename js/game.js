@@ -42,9 +42,13 @@ export class Game {
         // Generate rooms
         this.generateRooms();
         
-        // Set up player's onEnemyKilled callback
+        // Set up player's callbacks
         this.player.onEnemyKilled = (enemy) => {
             this.score += enemy.scoreValue;
+            this.updateHUD();
+        };
+        
+        this.player.onTakeDamage = () => {
             this.updateHUD();
         };
         
@@ -323,12 +327,20 @@ export class Game {
     }
     
     updateHUD() {
-        const healthElement = document.getElementById('health');
+        const healthContainer = document.getElementById('health-container');
         const scoreElement = document.getElementById('score');
         const itemsElement = document.getElementById('items');
         
-        if (healthElement) {
-            healthElement.textContent = `❤️ x ${this.player.health}`;
+        // Actualizar corazones
+        if (healthContainer) {
+            const hearts = healthContainer.querySelectorAll('.heart');
+            hearts.forEach((heart, index) => {
+                if (index < this.player.health) {
+                    heart.style.visibility = 'visible';
+                } else {
+                    heart.style.visibility = 'hidden';
+                }
+            });
         }
         
         if (scoreElement) {
